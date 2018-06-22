@@ -146,16 +146,14 @@ classes = {}
 bbox_threshold = 0.8
 
 visualise = True
-
-for idx, img_name in enumerate(sorted(os.listdir(img_path))):
-	if not img_name.lower().endswith(('.bmp', '.jpeg', '.jpg', '.png', '.tif', '.tiff')):
+for idx, img_name in enumerate(open(img_path).readlines()):
+	if not img_name.lower().strip().endswith(('.bmp', '.jpeg', '.jpg', '.png', '.tif', '.tiff')):
 		continue
-	print(img_name)
+	filepath = '~'+img_name[12:]
+	print(img_name.strip())
 	st = time.time()
-	filepath = os.path.join(img_path,img_name)
-
-	img = cv2.imread(filepath)
-
+	
+	img = cv2.imread(img_name.strip())
 	X, ratio = format_img(img, C)
 
 	if K.image_dim_ordering() == 'tf':
@@ -163,7 +161,8 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	# get the feature maps and output from the RPN
 	[Y1, Y2, F] = model_rpn.predict(X)
-	
+	#print(np.asarray(Y1).shape)
+	#print(np.asarray(Y2).shape)
 
 	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
 
@@ -192,7 +191,9 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 		[P_cls, P_regr] = model_classifier_only.predict([F, ROIs])
 
 		for ii in range(P_cls.shape[1]):
-
+			#print(np.asarray(ROIs).shape)
+			#print(np.asarray(P_cls).shape)
+			#print(np.asarray(P_regr).shape)
 			if np.max(P_cls[0, ii, :]) < bbox_threshold or np.argmax(P_cls[0, ii, :]) == (P_cls.shape[2] - 1):
 				continue
 
@@ -242,6 +243,6 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 
 	print('Elapsed time = {}'.format(time.time() - st))
 	print(all_dets)
-	cv2.imshow('img', img)
-	cv2.waitKey(0)
-	# cv2.imwrite('./results_imgs/{}.png'.format(idx),img)
+	#cv2.imshow('img', img)
+	#cv2.waitKey(1)
+	cv2.imwrite('./results_imgs/{}.png'.format(idx),img)

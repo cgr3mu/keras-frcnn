@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # keras-frcnn
 Keras implementation of Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks.
 cloned from https://github.com/yhenon/keras-frcnn/
@@ -54,3 +55,6 @@ ISSUES:
 - This repo was developed using `python2`. `python3` should work thanks to the contribution of a number of users.
 
 - If you run out of memory, try reducing the number of ROIs that are processed simultaneously. Try passing a lower `-n` to `train_frcnn.py`. Alternatively, try reducing the image size from the default value of 600 (this setting is found in `config.py`.
+=======
+# This repo is now deprecated. Instead, use https://github.com/fizyr/keras-retinanet. Keras-retinanet is more accurate, has higher quality code and runs faster.
+>>>>>>> 38fe0d77a11293e9cac43fe889d08c1fe23713d6

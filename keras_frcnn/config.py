@@ -16,7 +16,6 @@ class Config:
 
 		# anchor box scales
 		self.anchor_box_scales = [128, 256, 512]
-
 		# anchor box ratios
 		self.anchor_box_ratios = [[1, 1], [1./math.sqrt(2), 2./math.sqrt(2)], [2./math.sqrt(2), 1./math.sqrt(2)]]
 
@@ -54,5 +53,5 @@ class Config:
 		# weight files can be found at:
 		# https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_th_dim_ordering_th_kernels_notop.h5
 		# https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5
-
+		base_net_weights = 'resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5'
 		self.model_path = 'model_frcnn.vgg.hdf5'

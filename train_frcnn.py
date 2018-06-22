@@ -45,6 +45,8 @@ if options.parser == 'pascal_voc':
 	from keras_frcnn.pascal_voc_parser import get_data
 elif options.parser == 'simple':
 	from keras_frcnn.simple_parser import get_data
+elif options.parser == 'kaist':
+	from keras_frcnn.kaist_parser import get_data
 else:
 	raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 
@@ -76,11 +78,17 @@ else:
 	# set the path to weights based on backend and model
 	C.base_net_weights = nn.get_weight_path()
 
-all_imgs, classes_count, class_mapping = get_data(options.train_path)
+all_train_imgs, classes_count, class_mapping = get_data(options.train_path, 'train')
+all_val_imgs, val_classes_count, val_class_mapping = get_data(options.train_path, 'test')
 
 if 'bg' not in classes_count:
 	classes_count['bg'] = 0
 	class_mapping['bg'] = len(class_mapping)
+
+if 'bg' not in val_classes_count:
+	val_classes_count['bg'] = 0
+	val_class_mapping['bg'] = len(class_mapping)
+
 
 C.class_mapping = class_mapping
 
@@ -96,12 +104,16 @@ with open(config_output_filename, 'wb') as config_f:
 	pickle.dump(C,config_f)
 	print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(config_output_filename))
 
-random.shuffle(all_imgs)
+random.shuffle(all_train_imgs)
+random.shuffle(all_val_imgs)
+num_imgs = len(all_train_imgs)
 
-num_imgs = len(all_imgs)
+print('Validation images per class:')
+pprint.pprint(val_classes_count)
+print('Num Validation classes (including bg) = {}'.format(len(val_classes_count)))
 
-train_imgs = [s for s in all_imgs if s['imageset'] == 'trainval']
-val_imgs = [s for s in all_imgs if s['imageset'] == 'test']
+train_imgs = [s for s in all_train_imgs]
+val_imgs = [s for s in all_val_imgs]
 
 print('Num train samples {}'.format(len(train_imgs)))
 print('Num val samples {}'.format(len(val_imgs)))
@@ -117,7 +129,9 @@ else:
 
 img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(None, 4))
-
+print(train_imgs[0])
+print(len(val_imgs))
+#raw_input('hello')
 # define the base network (resnet here, can be VGG, Inception, etc)
 shared_layers = nn.nn_base(img_input, trainable=True)
 
@@ -143,10 +157,12 @@ except:
 
 optimizer = Adam(lr=1e-5)
 optimizer_classifier = Adam(lr=1e-5)
+model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)], metrics = {'rpn_out_class':'accuracy'})
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
+model_rpn.summary()
+#raw_input("Heyyy")
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
-
 epoch_length = 1000
 num_epochs = int(options.num_epochs)
 iter_num = 0
