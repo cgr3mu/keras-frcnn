@@ -333,5 +333,6 @@ def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backen
 				yield np.copy(x_img), [np.copy(y_rpn_cls), np.copy(y_rpn_regr)], img_data_aug
 
 			except Exception as e:
+				print "what the hell"
 				print(e)
 				continue

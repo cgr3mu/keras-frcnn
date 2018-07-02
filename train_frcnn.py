@@ -121,6 +121,12 @@ print('Num val samples {}'.format(len(val_imgs)))
 
 data_gen_train = data_generators.get_anchor_gt(train_imgs, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
 data_gen_val = data_generators.get_anchor_gt(val_imgs, classes_count, C, nn.get_img_output_length,K.image_dim_ordering(), mode='val')
+#XX,YY, imggg_data = next(data_gen_train)
+#print(np.array(XX).shape)
+#print(np.array(YY).shape)
+#print(np.array(imggg_data).shape)
+
+#raw_input("hello")
 
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)
@@ -156,14 +162,14 @@ except:
 		https://github.com/fchollet/keras/tree/master/keras/applications')
 
 optimizer = Adam(lr=1e-5)
-optimizer_classifier = Adam(lr=1e-5)
+optimizer_classifier = Adam(lr=1e-4)
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)], metrics = {'rpn_out_class':'accuracy'})
 model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
 model_rpn.summary()
 #raw_input("Heyyy")
 model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
-epoch_length = 1000
+epoch_length = 500
 num_epochs = int(options.num_epochs)
 iter_num = 0
 
@@ -195,7 +201,10 @@ for epoch_num in range(num_epochs):
 					print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
 
 			X, Y, img_data = next(data_gen_train)
-
+			#print(np.asarray(X).shape)
+			#print(np.asarray(Y).shape)
+			#print(np.asarray(img_data).shape)
+			#raw_input('hi')
 			loss_rpn = model_rpn.train_on_batch(X, Y)
 
 			P_rpn = model_rpn.predict_on_batch(X)

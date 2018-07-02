@@ -6,13 +6,12 @@ import pickle
 from optparse import OptionParser
 import time
 from keras_frcnn import config
-import keras_frcnn.resnet as nn
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import roi_helpers
 from keras_frcnn import data_generators
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, precision_score, recall_score, precision_recall_curve
 
 
 def get_map(pred, gt, f):
@@ -81,11 +80,14 @@ parser = OptionParser()
 parser.add_option("-p", "--path", dest="test_path", help="Path to test data.")
 parser.add_option("-n", "--num_rois", dest="num_rois",
 				help="Number of ROIs per iteration. Higher means more memory use.", default=32)
+parser.add_option("--input_weight_path", dest="input_weight_path", help="Input path for weights. If not specified, will try to load default weights provided by keras.")
+
 parser.add_option("--config_filename", dest="config_filename", help=
 				"Location to read the metadata related to the training (generated when training).",
 				default="config.pickle")
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
 				default="pascal_voc"),
+parser.add_option("--network", dest="network", help="Base network to use. Supports vgg or resnet50.", default='resnet50')
 
 (options, args) = parser.parse_args()
 
@@ -97,6 +99,8 @@ if options.parser == 'pascal_voc':
 	from keras_frcnn.pascal_voc_parser import get_data
 elif options.parser == 'simple':
 	from keras_frcnn.simple_parser import get_data
+elif options.parser == 'kaist':
+	from keras_frcnn.kaist_parser import get_data
 else:
 	raise ValueError("Command line option parser must be one of 'pascal_voc' or 'simple'")
 
@@ -105,6 +109,10 @@ config_output_filename = options.config_filename
 with open(config_output_filename, 'r') as f_in:
 	C = pickle.load(f_in)
 
+if C.network == 'resnet50':
+	import keras_frcnn.resnet as nn
+elif C.network == 'vgg':
+	import keras_frcnn.vgg as nn
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False
 C.use_vertical_flips = False
@@ -175,14 +183,16 @@ model_classifier_only = Model([feature_map_input, roi_input], classifier)
 
 model_classifier = Model([feature_map_input, roi_input], classifier)
 
-model_rpn.load_weights(C.model_path, by_name=True)
-model_classifier.load_weights(C.model_path, by_name=True)
-
+#model_rpn.load_weights(C.model_path, by_name=True)
+#model_classifier.load_weights(C.model_path, by_name=True)
+model_rpn.summary()
+raw_input("hi")
 model_rpn.compile(optimizer='sgd', loss='mse')
+
 model_classifier.compile(optimizer='sgd', loss='mse')
 
-all_imgs, _, _ = get_data(options.test_path)
-test_imgs = [s for s in all_imgs if s['imageset'] == 'test']
+all_imgs, _, _ = get_data(options.test_path, 'test')
+test_imgs = [s for s in all_imgs]
 
 
 T = {}
@@ -275,10 +285,34 @@ for idx, img_data in enumerate(test_imgs):
 		T[key].extend(t[key])
 		P[key].extend(p[key])
 	all_aps = []
+	all_precs = []
+	all_recalls = []
 	for key in T.keys():
+		#print("T[key] = {}, P[key] = {}".format(T[key],P[key]))
 		ap = average_precision_score(T[key], P[key])
+		#prec = precision_score(T[key], P[key])
+		#recall = recall_score(T[key], P[key])
+		#precs,recalls,thresh = precision_recall_curve(T[key], P[key])
+		#print sum(precs)/len(precs)
+		#print sum(recalls)/len(recalls)
+		#prec_per_img = sum(precs)/len(precs)
+		#recal_per_img = sum(recalls)/len(recalls)
+		#print "Precision_per_image: " + str(prec_per_img)
+		#print "Recall_per_img: " + str(recal_per_img)
+		#print len(precs)
+		#raw_input("hey there")
+
 		print('{} AP: {}'.format(key, ap))
+		#print('{} Prec: {}'.format(key, prec))
+		#print('{} Recall: {}'.format(key, recall))
 		all_aps.append(ap)
+		#all_precs.append(prec_per_img)
+		#all_recalls.append(recal_per_img)
 	print('mAP = {}'.format(np.mean(np.array(all_aps))))
+	#print('avr_precs = {}'.format(np.mean(np.array(all_precs))))
+	#print('avr_recall = {}'.format(np.mean(np.array(all_recalls))))
 	#print(T)
 	#print(P)
+#np.savetxt(np.array(all_aps))
+#np.savetxt(np.array(all_precs))
+#np.savetxt(np.array(all_recalls))
