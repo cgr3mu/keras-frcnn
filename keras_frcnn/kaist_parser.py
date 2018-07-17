@@ -2,6 +2,7 @@ import os
 import cv2
 import xml.etree.ElementTree as ET
 import numpy as np
+
 def get_data(input_path,mode):
 	all_imgs = []
 
@@ -32,6 +33,7 @@ def get_data(input_path,mode):
 	trainval_files = []
 	test_files = []		
 	idx = 0
+	people = 0
 	with open(data_path, 'r') as ft:
 		for line in ft:
 			line  = line.strip("\n")
@@ -53,7 +55,7 @@ def get_data(input_path,mode):
 			if len(element_objs) > 0:
 				annotation_data = {'filepath': line, 'width': element_width,
 								   'height': element_height, 'bboxes': []}
-
+				people += len(element_objs)
 				'''if element_filename in trainval_files:
 					annotation_data['imageset'] = 'trainval'
 				elif element_filename in test_files:
@@ -96,13 +98,13 @@ def get_data(input_path,mode):
 								  'x2'], bbox['y2']), (0, 0, 255))
 				cv2.imshow('img', img)
 				cv2.waitKey(0)
-
+#	print(people)
 	return all_imgs, classes_count, class_mapping
 	
-'''if __name__ == "__main__":
-	input_path = "/home/kishan/Documents/Knowledge_distillation_ped_detection/github_clone/rgbt-ped-detection-master/data/kaist-rgbt/"
-	imgs_dicts = get_data(input_path)
-	print imgs_dicts[59]
-	print len(imgs_dicts)'''
+#if __name__ == "__main__":
+#	input_path = "/home/kishan/Documents/Connor-Code/keras-frcnn/kaist-rgbt"
+#	get_data(input_path, 'test')
+	#print imgs_dicts[59]
+	#print len(imgs_dicts)'''
 	
 	

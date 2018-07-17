@@ -11,7 +11,7 @@ from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import roi_helpers
-
+import tensorflow as tf
 sys.setrecursionlimit(40000)
 
 parser = OptionParser()
@@ -32,13 +32,17 @@ if not options.test_path:   # if filename is not given
 
 config_output_filename = options.config_filename
 
+
+config_gpu = tf.ConfigProto()
+config_gpu.gpu_options.allow_growth = True
+config_gpu.allow_soft_placement = True
+session = tf.Session(config = config_gpu)
+
 with open(config_output_filename, 'rb') as f_in:
 	C = pickle.load(f_in)
 
-if C.network == 'resnet50':
-	import keras_frcnn.resnet as nn
-elif C.network == 'vgg':
-	import keras_frcnn.vgg as nn
+
+import keras_frcnn.vgg as nn
 
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False
@@ -101,10 +105,7 @@ print(class_mapping)
 class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
 C.num_rois = int(options.num_rois)
 
-if C.network == 'resnet50':
-	num_features = 1024
-elif C.network == 'vgg':
-	num_features = 512
+num_features = 512
 
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)
@@ -132,9 +133,9 @@ model_classifier_only = Model([feature_map_input, roi_input], classifier)
 
 model_classifier = Model([feature_map_input, roi_input], classifier)
 
-print('Loading weights from {}'.format(C.model_path))
-model_rpn.load_weights(C.model_path, by_name=True)
-model_classifier.load_weights(C.model_path, by_name=True)
+print('Loading weights from {}'.format('VGG16.hdf5'))
+model_rpn.load_weights('VGG16.hdf5', by_name=True)
+model_classifier.load_weights('VGG16.hdf5', by_name=True)
 
 model_rpn.compile(optimizer='sgd', loss='mse')
 model_classifier.compile(optimizer='sgd', loss='mse')
@@ -164,7 +165,7 @@ for idx, img_name in enumerate(open(img_path).readlines()):
 	#print(np.asarray(Y1).shape)
 	#print(np.asarray(Y2).shape)
 
-	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
+	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7) #### Change this to 0.7
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
 	R[:, 2] -= R[:, 0]

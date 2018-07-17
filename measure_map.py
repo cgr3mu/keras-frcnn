@@ -11,8 +11,9 @@ from keras.layers import Input
 from keras.models import Model
 from keras_frcnn import roi_helpers
 from keras_frcnn import data_generators
-from sklearn.metrics import average_precision_score, precision_score, recall_score, precision_recall_curve
-
+from sklearn.metrics import average_precision_score, precision_score, recall_score, precision_recall_curve, confusion_matrix
+from PIL import Image
+import keras_frcnn.resnet as nn
 
 def get_map(pred, gt, f):
 	T = {}
@@ -82,12 +83,10 @@ parser.add_option("-n", "--num_rois", dest="num_rois",
 				help="Number of ROIs per iteration. Higher means more memory use.", default=32)
 parser.add_option("--input_weight_path", dest="input_weight_path", help="Input path for weights. If not specified, will try to load default weights provided by keras.")
 
-parser.add_option("--config_filename", dest="config_filename", help=
-				"Location to read the metadata related to the training (generated when training).",
+parser.add_option("--config_filename", dest="config_filename", help="Location to read the metadata related to the training (generated when training).",
 				default="config.pickle")
 parser.add_option("-o", "--parser", dest="parser", help="Parser to use. One of simple or pascal_voc",
 				default="pascal_voc"),
-parser.add_option("--network", dest="network", help="Base network to use. Supports vgg or resnet50.", default='resnet50')
 
 (options, args) = parser.parse_args()
 
@@ -108,11 +107,7 @@ config_output_filename = options.config_filename
 
 with open(config_output_filename, 'r') as f_in:
 	C = pickle.load(f_in)
-
-if C.network == 'resnet50':
-	import keras_frcnn.resnet as nn
-elif C.network == 'vgg':
-	import keras_frcnn.vgg as nn
+	
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False
 C.use_vertical_flips = False
@@ -159,12 +154,12 @@ C.num_rois = int(options.num_rois)
 
 if K.image_dim_ordering() == 'th':
 	input_shape_img = (3, None, None)
-	input_shape_features = (1024, None, None)
+	input_shape_features = (2034, None, None)
 else:
 	input_shape_img = (None, None, 3)
 	input_shape_features = (None, None, 1024)
 
-
+#Change the input shape  if you are switching models
 img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(C.num_rois, 4))
 feature_map_input = Input(shape=input_shape_features)
@@ -183,15 +178,15 @@ model_classifier_only = Model([feature_map_input, roi_input], classifier)
 
 model_classifier = Model([feature_map_input, roi_input], classifier)
 
-#model_rpn.load_weights(C.model_path, by_name=True)
-#model_classifier.load_weights(C.model_path, by_name=True)
-model_rpn.summary()
-raw_input("hi")
+model_rpn.load_weights('ResNetRGB.hdf5', by_name=True)
+model_classifier.load_weights('ResNetRGB.hdf5', by_name=True)
+#model_rpn.summary()
+
 model_rpn.compile(optimizer='sgd', loss='mse')
 
 model_classifier.compile(optimizer='sgd', loss='mse')
 
-all_imgs, _, _ = get_data(options.test_path, 'test')
+all_imgs, _, _ = get_data(options.test_path,'test')
 test_imgs = [s for s in all_imgs]
 
 
@@ -202,8 +197,12 @@ for idx, img_data in enumerate(test_imgs):
 	st = time.time()
 	filepath = img_data['filepath']
 
+	#img = cv2.imread(filepath)
 	img = cv2.imread(filepath)
-
+	#imggg = Image.fromarray(img)
+	#imggg.show()
+	#cv2.imshow('img', img)
+	#cv2.waitKey()
 	X, fx, fy = format_img(img, C)
 
 	if K.image_dim_ordering() == 'tf':
@@ -237,10 +236,12 @@ for idx, img_data in enumerate(test_imgs):
 			ROIs = ROIs_padded
 
 		[P_cls, P_regr] = model_classifier_only.predict([F, ROIs])
-
 		for ii in range(P_cls.shape[1]):
-
+			#Backround is already removed from the output of the script, so there shouldn't be any true negatives
 			if np.argmax(P_cls[0, ii, :]) == (P_cls.shape[2] - 1):
+				print(P_cls[0, ii, :])
+				print(P_cls.shape[2] - 1)
+				raw_input('This continue block is screwing up the script!')
 				continue
 
 			cls_name = class_mapping[np.argmax(P_cls[0, ii, :])]
@@ -259,26 +260,30 @@ for idx, img_data in enumerate(test_imgs):
 				tw /= C.classifier_regr_std[2]
 				th /= C.classifier_regr_std[3]
 				x, y, w, h = roi_helpers.apply_regr(x, y, w, h, tx, ty, tw, th)
-			except:
+			except Exception as e:
+				print(e)
 				pass
 			bboxes[cls_name].append([16 * x, 16 * y, 16 * (x + w), 16 * (y + h)])
 			probs[cls_name].append(np.max(P_cls[0, ii, :]))
-
+			
 	all_dets = []
 
 	for key in bboxes:
 		bbox = np.array(bboxes[key])
 
 		new_boxes, new_probs = roi_helpers.non_max_suppression_fast(bbox, np.array(probs[key]), overlap_thresh=0.5)
+
 		for jk in range(new_boxes.shape[0]):
 			(x1, y1, x2, y2) = new_boxes[jk, :]
 			det = {'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'class': key, 'prob': new_probs[jk]}
 			all_dets.append(det)
 
-
+	#print(all_dets)
 	print('Elapsed time = {}'.format(time.time() - st))
+
 	t, p = get_map(all_dets, img_data['bboxes'], (fx, fy))
 	for key in t.keys():
+		print(key)
 		if key not in T:
 			T[key] = []
 			P[key] = []
@@ -287,9 +292,18 @@ for idx, img_data in enumerate(test_imgs):
 	all_aps = []
 	all_precs = []
 	all_recalls = []
+	#all_MR = []
+	#all_FO = []
+	#all_MR = []
+	#all_FO = []
 	for key in T.keys():
 		#print("T[key] = {}, P[key] = {}".format(T[key],P[key]))
-		ap = average_precision_score(T[key], P[key])
+		PArray = [0 if i >.8 else 1 for i in P[key]]
+		#print("T[key] = {}, P[key] = {}".format(T[key],PArray))
+		con = confusion_matrix(T[key], PArray)
+		print(con)
+			
+		#ap = average_precision_score(T[key], P[key])
 		#prec = precision_score(T[key], P[key])
 		#recall = recall_score(T[key], P[key])
 		#precs,recalls,thresh = precision_recall_curve(T[key], P[key])
@@ -301,18 +315,27 @@ for idx, img_data in enumerate(test_imgs):
 		#print "Recall_per_img: " + str(recal_per_img)
 		#print len(precs)
 		#raw_input("hey there")
-
-		print('{} AP: {}'.format(key, ap))
+		#print('{} AP: {}'.format(key, ap))
 		#print('{} Prec: {}'.format(key, prec))
 		#print('{} Recall: {}'.format(key, recall))
-		all_aps.append(ap)
+		#all_aps.append(ap)
 		#all_precs.append(prec_per_img)
 		#all_recalls.append(recal_per_img)
-	print('mAP = {}'.format(np.mean(np.array(all_aps))))
+		#all_MR.append(MR)
+		#all_FO.append(FO)
+
+	#print('Average Miss Rate = {}'.format(np.mean(np.array(all_MR))))
+	#print('Average Fallout = {}'.format(np.mean(np.array(all_FO))))
+	#print('mAP = {}'.format(np.mean(np.array(all_aps))))
 	#print('avr_precs = {}'.format(np.mean(np.array(all_precs))))
 	#print('avr_recall = {}'.format(np.mean(np.array(all_recalls))))
 	#print(T)
 	#print(P)
+MR = float(con[0][1])/(float(con[0][1])+float(con[0][0]))
+FO = float(con[1][0])/(float(con[1][0])+float(con[1][1]))
+print('Miss Rate: {}'.format(MR))
+print('Fallout: {}'.format(FO))
+#np.savetxt(np.array(all_MR))
 #np.savetxt(np.array(all_aps))
 #np.savetxt(np.array(all_precs))
 #np.savetxt(np.array(all_recalls))
